@@ -1,0 +1,11 @@
+node_modules/
+dist/
+out/
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+# dữ liệu người dùng không bao giờ vào repo
+data/
+profiles/
+*.cookies.json
