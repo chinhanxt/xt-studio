@@ -10,7 +10,7 @@ const runFf = (args) => new Promise((res) => execFile(ffmpeg(), ['-y', '-hide_ba
 function edgeOnce(text, voice, rate, out, cfg) {
   return new Promise((resolve) => {
     fs.writeFileSync(cfg, JSON.stringify({ text, voice, rate, out }), 'utf8');
-    const p = spawn('python', [path.resolve(__dirname, 'edge_tts_cli.py'), cfg], { windowsHide: true });
+    const p = spawn(require('./platform').PY, [path.resolve(__dirname, 'edge_tts_cli.py'), cfg], { windowsHide: true });
     let err = ''; p.stderr.on('data', (d) => { err = (err + d).slice(-300); });
     p.on('error', (e) => resolve({ ok: false, error: e.code === 'ENOENT' ? 'Không tìm thấy Python (cần cài Python + gói edge-tts)' : e.message }));
     p.on('close', (c) => resolve(c === 0 && fs.existsSync(out) && fs.statSync(out).size > 0 ? { ok: true } : { ok: false, error: err.split('\n').filter(Boolean).pop() || `mã ${c}` }));

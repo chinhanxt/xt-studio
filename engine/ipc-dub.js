@@ -46,9 +46,8 @@ function resolvePythonBin() {
     path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Python', 'Python312', 'python.exe'),
     path.join(os.homedir(), 'AppData', 'Local', 'Python', 'bin', 'python.exe'),
     path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Python', 'Python311', 'python.exe'),
-    'python'
   ];
-  return candidates.find(p => p === 'python' || fs.existsSync(p)) || 'python';
+  return candidates.find(p => fs.existsSync(p)) || require('./platform').PY;
 }
 
 // Edge-TTS qua file JSON (an toàn với tiếng Việt) + thử lại: dịch vụ Microsoft thỉnh thoảng trả "NoAudioReceived".

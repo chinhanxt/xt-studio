@@ -18,9 +18,8 @@ function resolvePythonBin() {
     path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Python', 'Python312', 'python.exe'),
     path.join(os.homedir(), 'AppData', 'Local', 'Python', 'bin', 'python.exe'),
     path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Python', 'Python311', 'python.exe'),
-    'python'
   ];
-  return candidates.find(p => p === 'python' || fs.existsSync(p)) || 'python';
+  return candidates.find(p => fs.existsSync(p)) || require('./platform').PY;
 }
 
 function register({ ipcMain, dialog, getWindow, defaultOutputDir, sendProgress }) {

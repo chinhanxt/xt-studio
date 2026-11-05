@@ -181,7 +181,7 @@ asyncio.run(_run())
     });
     fs.writeFileSync(cfgPath, Buffer.from(jsonStr, 'utf8'));
 
-    const p = spawn('python', ['-c', pyScript, cfgPath], { windowsHide: true });
+    const p = spawn(require('../platform').PY, ['-c', pyScript, cfgPath], { windowsHide: true });
     let errText = '';
     p.stderr.on('data', d => { errText += d.toString(); });
     p.on('close', (code) => {
@@ -219,7 +219,7 @@ async function synthesizeWithVieNeu(text, voiceName, outPath) {
   });
 
   return new Promise((resolve, reject) => {
-    const p = spawn('python', [cliScript, payload], { windowsHide: true });
+    const p = spawn(require('../platform').PY, [cliScript, payload], { windowsHide: true });
     p.on('close', (code) => {
       if (code === 0 && fs.existsSync(outPath) && fs.statSync(outPath).size > 0) {
         resolve({ ok: true, outPath });

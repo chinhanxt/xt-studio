@@ -60,7 +60,7 @@ class CrmServer {
     const p = url.pathname;
 
     if (req.method === 'GET' && p === '/api/status') {
-      return send(200, { success: true, app: 'Sesame Studio', version: '1.0.0', status: this.museStatus });
+      return send(200, { success: true, app: 'xT studio', version: '1.0.0', status: this.museStatus });
     }
 
     if (req.method === 'POST' && p === '/api/render') {

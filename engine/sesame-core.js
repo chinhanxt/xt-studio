@@ -35,14 +35,13 @@ function resolvePythonBin() {
     path.join(os.homedir(), 'AppData', 'Local', 'Python', 'bin', 'python.exe'),
     path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Python', 'Python312', 'python.exe'),
     path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Python', 'Python311', 'python.exe'),
-    'python'
   ];
-  return candidates.find(p => p === 'python' || fs.existsSync(p)) || 'python';
+  return candidates.find(p => fs.existsSync(p)) || require('./platform').PY;
 }
 
 function resolvePython312Bin() {
-  const p312 = path.join(os.homedir(), '.local', 'bin', 'python3.12.exe');
-  return fs.existsSync(p312) ? p312 : resolvePythonBin();
+  const p312 = [path.join(os.homedir(), '.local', 'bin', 'python3.12.exe'), ...require('./platform').python312Candidates()].find(p => fs.existsSync(p));
+  return p312 || resolvePythonBin();
 }
 
 function runFfmpeg(args, { onProgress = null, totalDuration = 0, timeoutMs = 600000 } = {}) {

@@ -43,13 +43,13 @@ function cleanVieneuVoiceName(voice = '') {
 
 function resolvePython312Bin() {
   const candidates = [
+    ...require('./platform').python312Candidates(),
     path.join(os.homedir(), '.local', 'bin', 'python3.12.exe'),
     path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Python', 'Python312', 'python.exe'),
     path.join(os.homedir(), 'AppData', 'Local', 'Python', 'bin', 'python.exe'),
     path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Python', 'Python311', 'python.exe'),
-    'python'
   ];
-  return candidates.find(p => p === 'python' || fs.existsSync(p)) || 'python';
+  return candidates.find(p => fs.existsSync(p)) || require('./platform').PY;
 }
 
 function resolveFfmpegBin(name = 'ffmpeg') {
@@ -231,7 +231,7 @@ function extractCleanNarrationFromScene(sc = {}) {
 async function previewVieneuVoice({ voice = 'Quỳnh Anh', text = '' } = {}) {
   const voiceName = cleanVieneuVoiceName(voice);
   const sampleText = String(text || '').trim() ||
-    `Xin chào, đây là giọng đọc ${voiceName} trên Sesame Studio Studio, sử dụng mô hình VieNeu TTS v3 Turbo chất lượng cao bốn mươi tám kilohertz.`;
+    `Xin chào, đây là giọng đọc ${voiceName} trên xT studio, sử dụng mô hình VieNeu TTS v3 Turbo chất lượng cao bốn mươi tám kilohertz.`;
   const hash = Buffer.from(`${voiceName}::${sampleText}`).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
   const cacheDir = path.join(os.tmpdir(), 'sesame_vieneu_previews');
   fs.mkdirSync(cacheDir, { recursive: true });

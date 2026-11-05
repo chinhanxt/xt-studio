@@ -21,14 +21,20 @@ const { DOLA_URL } = require('./dola-runner');
 
 const pagesCache = new Map();
 
+// Thư mục dữ liệu của app (Electron userData); chạy ngoài Electron thì dùng ~/.xt-studio
+function dataDir() {
+  try { const p = require('electron').app.getPath('userData'); if (p) return p; } catch (_) {}
+  return path.join(os.homedir(), '.xt-studio');
+}
+
 function getProfilesRoot() {
-  const localProfiles = path.join(os.homedir(), 'AppData', 'Roaming', 'sesame-studio', 'profiles');
+  const localProfiles = path.join(dataDir(), 'profiles');
   fs.mkdirSync(localProfiles, { recursive: true });
   return localProfiles;
 }
 
 function getAccountsList() {
-  const accFile = path.join(os.homedir(), 'AppData', 'Roaming', 'sesame-studio', 'accounts.json');
+  const accFile = path.join(dataDir(), 'accounts.json');
   if (fs.existsSync(accFile)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(accFile, 'utf8'));

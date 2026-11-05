@@ -1,9 +1,17 @@
 {
-  "name": "sesame-studio",
-  "productName": "Sesame Studio",
-  "version": "1.0.0",
-  "description": "Sesame Studio — bộ công cụ video AI miễn phí: tạo cảnh, prompt đồng bộ, ghép/chỉnh sửa, cắt video, đọc giọng.",
+  "name": "xt-studio",
+  "productName": "xT studio",
+  "version": "1.1.0",
+  "description": "xT studio — bộ công cụ video AI: tạo video (Muse, Google Flow, Dola, Seedance), kịch bản, đồng bộ cảnh, ghép/cắt video, giọng đọc, đăng Reels.",
   "main": "main.js",
-  "author": "Lan Phương Nguyễn",
-  "license": "SEE LICENSE IN LICENSE.txt"
+  "author": "chinhanxt",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron . --no-sandbox",
+    "check": "node scripts/check.js"
+  },
+  "devDependencies": {
+    "electron": "33.4.11"
+  }
 }

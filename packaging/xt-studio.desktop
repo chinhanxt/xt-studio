@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=xT studio
+Comment=Bộ công cụ video AI
+Exec=@REPO@/scripts/xt-studio.sh
+Icon=xt-studio
+Terminal=false
+Categories=AudioVideo;Video;
+StartupWMClass=xT studio

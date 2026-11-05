@@ -17,15 +17,16 @@ function log(msg) {
     fs.appendFileSync(_logFile, msg + '\n');
   } catch (_) {}
 }
-log('main.js starting at ' + new Date().toISOString());
 
 const { app, BrowserWindow, ipcMain, dialog, shell, powerSaveBlocker } = require('electron');
 // Tên hiển thị trên dock / Alt+Tab là "xT studio"; thư mục dữ liệu giữ nguyên chỗ cũ để không mất tài khoản, dự án.
 try {
-  const keepUserData = app.getPath('userData');
+  // Máy đã có dữ liệu bản cũ (thư mục "Sesame Studio") thì dùng tiếp; máy mới dùng "xT studio"
+  const legacyData = path.join(app.getPath('appData'), 'Sesame Studio');
   app.setName('xT studio');
-  app.setPath('userData', keepUserData);
+  app.setPath('userData', fs.existsSync(legacyData) ? legacyData : path.join(app.getPath('appData'), 'xT studio'));
 } catch (_) {}
+log('main.js starting at ' + new Date().toISOString());
 // Cổng gỡ lỗi từ xa mặc định ĐÓNG (an toàn cho người dùng cuối). Nhà phát triển bật bằng biến môi trường SESAME_DEBUG_PORT
 // hoặc tạo file trống "enable-debug-port" trong thư mục dữ liệu của app.
 try {
@@ -87,7 +88,7 @@ let filmProjectService = null;
 const pages = new Map(); // accountId → MusePage (mỗi tài khoản 1 Chrome, profile riêng)
 const logins = new Map();
 
-// Thư mục xuất mặc định: Videos\\Sesame Studio (luôn ghi được). Nếu thư mục "output" cạnh app đã có dữ liệu và ghi được
+// Thư mục xuất mặc định: Videos/xT studio (máy đã có Videos/Sesame Studio thì dùng tiếp, luôn ghi được). Nếu thư mục "output" cạnh app đã có dữ liệu và ghi được
 // (máy phát triển / bản cũ) thì vẫn dùng nó để không mất thư viện cũ.
 function resolveDefaultOutputDir() {
   const legacy = path.join(ROOT_DIR, 'output');
@@ -97,7 +98,9 @@ function resolveDefaultOutputDir() {
   let base = '';
   try { base = app.getPath('videos'); } catch (_) {}
   if (!base) { try { base = app.getPath('documents'); } catch (_) {} }
-  return path.join(base || os.homedir(), 'Sesame Studio');
+  const root = base || os.homedir();
+  const legacyOut = path.join(root, 'Sesame Studio');
+  return fs.existsSync(legacyOut) ? legacyOut : path.join(root, 'xT studio');
 }
 function defaultOutputDir() {
   const custom = configManager.get().outputDir;
@@ -141,10 +144,10 @@ function handleVideoFinished(localPath, originalUrl = 'sesame') {
 }
 
 // Trình duyệt chạy trong Google Chrome thật (profile riêng từng tài khoản theo provider), điều khiển qua CDP (điều khiển qua CDP).
-// Mỗi tài khoản dùng profile riêng trong thư mục dữ liệu của Sesame Studio.
+// Mỗi tài khoản dùng profile riêng trong thư mục dữ liệu của app.
 function resolveProfileDir(id) {
   const candidates = [
-    path.join(app.getPath('appData'), 'Sesame Studio', 'profiles', id),
+    path.join(app.getPath('userData'), 'profiles', id),
     path.join(app.getPath('userData'), 'profiles', id)
   ];
   for (const dir of candidates) {

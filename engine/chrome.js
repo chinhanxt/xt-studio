@@ -10,26 +10,13 @@ const fs = require('fs');
 const path = require('path');
 
 const IS_MAC = process.platform === 'darwin';
-// Chrome của máy: Mac trong /Applications; Windows trong Program Files hoặc AppData\Local (cài riêng 1 người dùng)
-const CHROME_PATH = IS_MAC ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-  : [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA].filter(Boolean)
-    .map(d => path.join(d, 'Google', 'Chrome', 'Application', 'chrome.exe')).find(p => fs.existsSync(p)) || 'chrome.exe';
+// Chrome của máy: Mac trong /Applications; Windows trong Program Files / AppData; Linux theo PATH (google-chrome, chromium)
+const platform = require('./platform');
+const CHROME_PATH = platform.chromePath();
 // Windows không có "ẩn app" như Mac → đẩy cửa sổ ra ngoài màn hình (vẫn chạy JS bình thường, không bị thu nhỏ)
 const OFF = { left: -32000, top: -32000 };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-function killStaleChromeForProfile(profileDir) {
-  if (IS_MAC || !profileDir) return Promise.resolve();
-  return new Promise(resolve => {
-    const escaped = profileDir.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    execFile('powershell.exe', [
-      '-NoProfile', '-NonInteractive', '-Command',
-      `Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe'" | Where-Object { $_.CommandLine -match '${escaped}' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`
-    ], { timeout: 4500 }, () => {
-      try { fs.unlinkSync(path.join(profileDir, 'SingletonLock')); } catch (_) {}
-      resolve();
-    });
-  });
-}
+const killStaleChromeForProfile = profileDir => platform.killChromeForProfile(profileDir);
 // Ẩn/hiện cả app Chrome theo PID (như Cmd+H): không cửa sổ, không thu nhỏ xuống Dock, JS vẫn chạy (đã có cờ chống throttle)
 const appProc = (pid, act, done) => execFile('osascript', ['-l', 'JavaScript', '-e',
   `ObjC.import('AppKit'); const app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(${pid}); app.${act}`], done);

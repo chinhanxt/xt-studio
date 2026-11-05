@@ -721,7 +721,7 @@ function register({ ipcMain, app, getWindow, defaultOutputDir, sendProgress }) {
         if (!p) return { ok: false, error: 'Thiếu đường dẫn.' };
         const dir = fs.existsSync(p) && fs.statSync(p).isDirectory() ? p : path.dirname(p);
         try { const { shell } = require('electron'); if (shell && shell.openPath) { await shell.openPath(dir); return { ok: true }; } } catch (_) {}
-        execFile(process.platform === 'win32' ? 'explorer.exe' : 'open', [dir], () => {});
+        require('./platform').openPath(dir);
         return { ok: true };
       } catch (e) { return { ok: false, error: e.message }; }
     },

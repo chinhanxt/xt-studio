@@ -26,7 +26,8 @@ module.exports = function createTtsSources(deps) {
       path.join(home, '.local', 'bin', 'python3.12.exe'),
       path.join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python312', 'python.exe'),
       path.join(home, 'AppData', 'Local', 'Python', 'bin', 'python.exe'),
-      path.join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python311', 'python.exe')
+      path.join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python311', 'python.exe'),
+      ...require('../platform').python312Candidates()
     ].filter(p => fs.existsSync(p));
   }
   let vieneuReadyCache = null;
@@ -132,7 +133,7 @@ module.exports = function createTtsSources(deps) {
     try {
       await new Promise((resolve, reject) => {
         const py = "import asyncio,json,sys,edge_tts\nv=asyncio.run(edge_tts.list_voices())\nout=[{'id':x['ShortName'],'gender':x.get('Gender',''),'locale':x['Locale'],'localeName':x.get('LocaleName','')} for x in v]\nopen(sys.argv[1],'w',encoding='utf-8').write(json.dumps(out,ensure_ascii=False))";
-        const p = spawn('python', ['-c', py, dest], { windowsHide: true });
+        const p = spawn(require('../platform').PY, ['-c', py, dest], { windowsHide: true });
         let err = '';
         p.stderr.on('data', d => { err += d.toString(); });
         p.on('error', reject);
@@ -216,7 +217,7 @@ module.exports = function createTtsSources(deps) {
     fs.mkdirSync(dir, { recursive: true });
     const outPath = path.join(dir, 'pv_' + Date.now() + '.mp3');
     try {
-      await synthesizeVoice({ text: text || 'Xin chào, đây là giọng đọc thử của Sesame Studio.', voiceId, outPath, rate, pitchHz, source });
+      await synthesizeVoice({ text: text || 'Xin chào, đây là giọng đọc thử của xT studio.', voiceId, outPath, rate, pitchHz, source });
       const duration = await probeAudioDuration(outPath);
       return { ok: true, outputPath: outPath, duration };
     } catch (e) {
