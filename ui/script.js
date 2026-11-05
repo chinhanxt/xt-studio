@@ -1003,17 +1003,23 @@
       job.taskPart = k;
       // Có storyboard: làm tiếp trong chat đã vẽ (cùng tài khoản), vẫn gắn lại ảnh storyboard; không vào được chat đó thì mở chat mới.
       const m = job.board?.length || 0;
+      // Từng cảnh (≥2 cảnh, Muse/Tự động): clip k nối tiếp clip k-1 trong cùng chat Muse bằng snapshot (giữ nhân vật)
+      const chainable = each && groups.length > 1 && ['muse', 'auto'].includes(job.cfg.engine || 'auto');
+      const prev = chainable && k > 0 ? job.chain?.[k - 1] : null;
       const done = await runTask({
         prompt: board && m ? boardVideoPrompt(groups[k], job.cfg, m, job.thread) : buildPrompt(groups[k], job.cfg, refs),
         timeoutMin,
         thread: board && m ? job.thread : '', account: board && m ? job.threadAcc || '' : '',
         label: job.title + (job.part ? ` · ${job.part.toLowerCase()}` : ''),
-        images: board && m ? job.board.map(f => ({ imageLocalPath: f })) : taskImages(uniqueImgs(groups[k], refs)).concat(hostImgsFor(groups[k]))
+        images: board && m ? job.board.map(f => ({ imageLocalPath: f })) : taskImages(uniqueImgs(groups[k], refs)).concat(hostImgsFor(groups[k])),
+        ...(chainable ? { clipK: k + 1, clipTotal: groups.length } : {}),
+        ...(prev?.sid ? { thread: `https://muse.ai/thread/${prev.sid}`, account: prev.acc || '', continueFrom: job.videos[k - 1] || '' } : {})
       });
       if (!done) return false;
       if (done.status !== 'succeeded') return fail(done.error || 'Task không thành công. Xem tab Lịch sử task.');
       if (done.threadError) toast(`${job.title}: ${done.threadError}`, 'warn');
       job.videos[k] = done.files[0];
+      if (chainable) (job.chain ||= [])[k] = { sid: done.sessionId || '', acc: done.accountId || '' };
       renderQueue();
     }
 

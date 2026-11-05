@@ -274,6 +274,17 @@ class MusePage {
     }
   }
   async hide() { if (this.chrome?.running) await this.chrome.hide(); }
+  // Nạp cookie từ file (đã đổi sang dạng CDP). Cách EM BÔNG #236: về about:blank để tab cũ không ghi lại phiên,
+  // xoá cookie + dữ liệu trang cũ của profile, nạp cookie mới rồi mở lại trang dịch vụ.
+  async importCookies(cookies, origins = []) {
+    await this.ready();
+    const c = this.chrome;
+    await c.cmd('Page.navigate', { url: 'about:blank' }, c.sessionId).catch(() => {});
+    await c.cmd('Storage.clearCookies');
+    for (const origin of origins) await c.cmd('Storage.clearDataForOrigin', { origin, storageTypes: 'all' }).catch(() => {});
+    await c.cmd('Storage.setCookies', { cookies });
+    await c.cmd('Page.navigate', { url: c.url }, c.sessionId);
+  }
   async logout() {
     await this.ready();
     if (this.provider === 'google_flow') {

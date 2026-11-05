@@ -29,6 +29,7 @@ const api = {
   loginAccount: (id) => ipcRenderer.invoke('account-login', id),
   showAccount: (id) => ipcRenderer.invoke('account-show', id),
   logoutAccount: (id) => ipcRenderer.invoke('account-logout', id),
+  importAccountCookies: (id) => ipcRenderer.invoke('account-import-cookies', id),
   saveAccountSettings: (patch) => ipcRenderer.invoke('accounts-settings', patch),
   checkProxies: () => ipcRenderer.invoke('proxies-check'),
   checkAccountsQuota: (id) => ipcRenderer.invoke('accounts-check-quota', id),

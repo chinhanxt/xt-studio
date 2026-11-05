@@ -14,9 +14,9 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'xt-test-'));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 const hasFfmpeg = (() => { try { execFileSync('ffprobe', ['-version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
-function makeVideo(name, color) {
+function makeVideo(name, color, src = `color=c=${color}:s=64x64:d=2`) {
   const f = path.join(tmp, name);
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=${color}:s=64x64:d=2`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', f]);
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', src, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', f]);
   return fs.readFileSync(f);
 }
 
@@ -111,4 +111,80 @@ test('Pool: Muse báo hết lượt → task về hàng đợi, không tính lư
   assert.equal(t.attempts, 0);
   assert.ok(a.limitUntil > Date.now());
   assert.ok(pausedUntil(a, accounts.settings, Date.now()) > 0, 'scheduler phải coi tài khoản đang nghỉ');
+});
+
+// --- Nhập cookie ---
+const { parseCookieFile, toCdpCookies } = require('../engine/cookie-import');
+test('Cookie: giữ đúng tên miền, host-only theo url, gia hạn cookie phiên, đổi sameSite', () => {
+  const raw = parseCookieFile(JSON.stringify({ cookies: [
+    { name: 'hatch_sess', value: 'a', domain: '.muse.ai', path: '/', sameSite: 'no_restriction', session: true },
+    { name: '__Host-x', value: 'b', domain: 'muse.ai', path: '/app', secure: true },
+    { name: 'NID', value: 'c', domain: '.google.com' }] }));
+  const out = toCdpCookies(raw, 'muse', 1000);
+  assert.equal(out.length, 2, 'bỏ cookie google.com');
+  assert.equal(out[0].domain, '.muse.ai');
+  assert.equal(out[0].sameSite, 'None');
+  assert.equal(out[0].secure, true, 'SameSite=None bắt buộc secure');
+  assert.equal(out[0].expires, 1000 + 7 * 86400);
+  assert.equal(out[1].url, 'https://muse.ai/', '__Host- luôn host-only, path /');
+  assert.throws(() => parseCookieFile('không phải json'), /JSON/);
+});
+
+// --- Nối clip + âm thanh: câu lệnh ---
+const { buildMessage } = require('../engine/muse-runner');
+test('Câu lệnh: clip 1 giữ snapshot, clip sau resume_from_snapshot_id, âm thanh đúng chế độ', () => {
+  const m1 = buildMessage({ kind: 'video', prompt: 'cô gái đi dạo phố cổ lúc hoàng hôn, máy quay lia chậm theo bước chân, ánh nắng vàng chiếu nghiêng qua mái ngói rêu phong cổ kính', clipK: 1, clipTotal: 3 });
+  assert.match(m1, /CLIP 1\/3/); assert.match(m1, /keep its snapshot_id/);
+  const m2 = buildMessage({ kind: 'video', prompt: 'tiếp', clipK: 2, clipTotal: 3, audio: 'off' });
+  assert.match(m2, /resume_from_snapshot_id = the snapshot_id of clip 1/);
+  assert.match(m2, /KHÔNG có âm thanh/);
+  const m3 = buildMessage({ kind: 'video', prompt: 'tiếp', clipK: 3, clipTotal: 3 }, 'frame');
+  assert.match(m3, /clip CUỐI/); assert.match(m3, /khung hình CUỐI/); assert.doesNotMatch(m3, /resume_from_snapshot_id/);
+  assert.doesNotMatch(buildMessage({ kind: 'image', prompt: 'x', clipK: 2, clipTotal: 3, audio: 'off' }), /CLIP|ÂM THANH/, 'ảnh không gắn');
+  assert.doesNotMatch(buildMessage({ kind: 'video', prompt: 'x' }), /CLIP|ÂM THANH/, 'mặc định không đổi gì');
+});
+
+// --- Nối clip: cách gửi ---
+function recPage(results, files, { threadOk = true } = {}) {
+  const sends = [];
+  return { sends, page: {
+    send: async (text, atts, thread) => { sends.push({ text, atts: atts.length, attNames: atts.map(a => a.filename), thread: thread || '' }); return thread && !threadOk ? { ok: false, reason: 'gone' } : { ok: true, sessionId: thread || 'NEW' }; },
+    status: (() => { let n = 0; return async () => (n++ === 0 ? 'running' : 'done'); })(), cancel: async () => {}, result: async () => results, readFile: async p => files[p],
+  } };
+}
+const imgLoader = async img => ({ mimeType: 'image/jpeg', dataBase64: fs.readFileSync(img.imageLocalPath || '/dev/null').toString('base64') || 'AA==' });
+
+test('Nối clip: clip 2 gửi vào chat cũ, không kèm ảnh', { skip: !hasFfmpeg }, async () => {
+  const buf = makeVideo('c2.mp4', 'green');
+  const f = { path: '/o/c2.mp4', mime: 'video/mp4', byteLen: buf.length };
+  const { page, sends } = recPage({ files: [f], text: '' }, { '/o/c2.mp4': buf });
+  const ref = path.join(tmp, 'ref.jpg'); fs.writeFileSync(ref, Buffer.from('jpg'));
+  await runTask(baseTask({ clipK: 2, clipTotal: 3, thread: 'https://muse.ai/thread/OLD', pin: 'A', images: [{ imageLocalPath: ref }] }), ctx(page, { accountId: 'A', loadImage: imgLoader }));
+  assert.equal(sends.length, 1);
+  assert.equal(sends[0].thread, 'OLD');
+  assert.equal(sends[0].atts, 0);
+  assert.match(sends[0].text, /resume_from_snapshot_id/);
+});
+
+test('Nối clip: chat cũ hỏng → chat mới kèm khung cuối clip trước', { skip: !hasFfmpeg }, async () => {
+  const prevClip = path.join(tmp, 'prev.mp4'); fs.writeFileSync(prevClip, makeVideo('prev_src.mp4', '', 'testsrc=s=320x240:d=2'));
+  const buf = makeVideo('c3.mp4', 'purple');
+  const f = { path: '/o/c3.mp4', mime: 'video/mp4', byteLen: buf.length };
+  const { page, sends } = recPage({ files: [f], text: '' }, { '/o/c3.mp4': buf }, { threadOk: false });
+  await runTask(baseTask({ clipK: 3, clipTotal: 3, thread: 'https://muse.ai/thread/OLD', pin: 'A', continueFrom: prevClip }), ctx(page, { accountId: 'A', loadImage: imgLoader }));
+  assert.equal(sends.length, 2);
+  assert.equal(sends[1].thread, '');
+  assert.equal(sends[1].attNames[0], 'khung_cuoi_clip_truoc.jpg');
+  assert.match(sends[1].text, /khung hình CUỐI/);
+});
+
+test('Âm thanh Tắt tiếng: file tải về không còn luồng âm thanh', { skip: !hasFfmpeg }, async () => {
+  const src = path.join(tmp, 'withaudio.mp4');
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=white:s=64x64:d=2', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2', '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', src]);
+  const buf = fs.readFileSync(src);
+  const f = { path: '/o/a.mp4', mime: 'video/mp4', byteLen: buf.length };
+  const { page } = recPage({ files: [f], text: '' }, { '/o/a.mp4': buf });
+  const [saved] = await runTask(baseTask({ audio: 'off' }), ctx(page));
+  const streams = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', saved]).toString().trim().split('\n');
+  assert.deepEqual(streams, ['video']);
 });

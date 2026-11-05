@@ -112,6 +112,7 @@
         <select class="select" data-f="threads" title="Số luồng của tài khoản này">${[1, 2, 3, 4, 5].map(n => `<option value="${n}"${n === a.threads ? ' selected' : ''}>${n} luồng</option>`).join('')}</select>
         <div class="acc-acts">
           ${a.loggedIn ? '<button class="btn-ghost btn-sm" data-act="show">Hiện Chrome</button>' : '<button class="btn btn-sm" data-act="login">Đăng nhập</button>'}
+          <button class="btn-ghost btn-sm" data-act="cookie"${busy ? ' disabled' : ''} title="Nạp cookie từ file .json (Cookie-Editor, EditThisCookie…) — thay phiên đăng nhập cũ">Nhập cookie</button>
           <button class="btn-ghost btn-sm" data-act="quota"${a.loggedIn ? '' : ' disabled'}>Hạn mức</button>
           <button class="btn-ghost btn-sm" data-act="logout"${a.loggedIn && !busy ? '' : ' disabled'}>Đăng xuất</button>
           <button class="btn-danger btn-sm" data-act="remove"${busy || view.accounts.length < 2 ? ' disabled' : ''}>Xoá</button>
@@ -178,6 +179,15 @@
     }
     if (act === 'show' && !await api.showAccount(id)) toast('Không mở được Chrome của tài khoản này.', 'danger');
     if (act === 'quota') { btn.disabled = true; render(await api.checkQuota(id)); }
+    if (act === 'cookie') {
+      btn.disabled = true;
+      const r = await api.importAccountCookies(id);
+      btn.disabled = false;
+      if (r?.canceled) return;
+      if (!r?.ok) return toast(r?.error || 'Không nhập được cookie.', 'danger');
+      toast(r.loggedIn ? `Đã nhập ${r.count} cookie · ${acc.name} đã đăng nhập.` : `Đã nhập ${r.count} cookie nhưng ${acc.name} vẫn chưa đăng nhập (cookie hết hạn hoặc thiếu).`, r.loggedIn ? 'ok' : 'warn');
+      return;
+    }
     if (act === 'logout') {
       if (!confirm(`Đăng xuất ${acc.name}? Muốn dùng lại phải đăng nhập lại.`)) return;
       const r = await api.logoutAccount(id);

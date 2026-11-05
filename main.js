@@ -972,6 +972,28 @@ ipcMain.handle('account-remove', async (_e, id) => {
 });
 ipcMain.handle('account-login', (_e, id) => { loginAccount(id); return true; });
 ipcMain.handle('account-show', (_e, id) => pageFor(id).show().then(() => true, () => false));
+// Nhập cookie từ file .json (Cookie-Editor / EditThisCookie / Playwright) — cookie nhập tay thắng phiên cũ trong profile
+ipcMain.handle('account-import-cookies', async (_e, id) => {
+  const acc = accountStore.get(id);
+  if (!acc) return { ok: false, error: 'Không thấy tài khoản' };
+  if (pool.busy(id)) return { ok: false, error: 'Tài khoản đang chạy task. Dừng task trước.' };
+  const pick = await dialog.showOpenDialog(mainWindow, { title: `Chọn file cookie .json cho ${acc.name}`, filters: [{ name: 'Cookie JSON', extensions: ['json'] }], properties: ['openFile'] });
+  if (pick.canceled || !pick.filePaths[0]) return { ok: false, canceled: true };
+  const { PROVIDER, parseCookieFile, toCdpCookies } = require('./engine/cookie-import');
+  try {
+    const raw = parseCookieFile(fs.readFileSync(pick.filePaths[0], 'utf8'));
+    const provider = acc.provider || 'muse';
+    const cookies = toCdpCookies(raw, provider);
+    if (!cookies.length) return { ok: false, error: `File không có cookie của ${PROVIDER[provider]?.label || provider}` };
+    await pageFor(id).importCookies(cookies, PROVIDER[provider]?.origins || []);
+    const loggedIn = await pool.checkLogin(id, 10);
+    if (loggedIn) pool.refreshQuota(id).catch(() => {});
+    pushStatus();
+    return { ok: true, count: cookies.length, loggedIn };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
 ipcMain.handle('account-logout', async (_e, id) => {
   if (pool.busy(id)) return { ok: false, error: 'Tài khoản đang chạy task. Dừng task trước.' };
   await pageFor(id).logout();

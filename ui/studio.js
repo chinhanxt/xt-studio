@@ -32,6 +32,18 @@
   });
   syncRatio();
   remember($('st-n'), 'st.n');
+  // Âm thanh (chỉ cho video): '' có tiếng · nodialogue · off — nhớ giữa các lần mở app
+  let audio = '';
+  try { audio = localStorage.getItem('muse.st.audio') || ''; } catch (_) {}
+  const syncAudio = () => $('st-audio-seg').querySelectorAll('[data-a]').forEach(b => b.classList.toggle('active', b.dataset.a === audio));
+  $('st-audio-seg').addEventListener('click', e => {
+    const b = e.target.closest('[data-a]');
+    if (!b) return;
+    audio = b.dataset.a;
+    try { localStorage.setItem('muse.st.audio', audio); } catch (_) {}
+    syncAudio();
+  });
+  syncAudio();
   if ($('st-engine')) remember($('st-engine'), 'st.engine');
   remember(sepEl, 'st.sep');
 
@@ -108,6 +120,7 @@
     kind = b.dataset.kind;
     document.querySelectorAll('.studio-compose [data-kind]').forEach(x => x.classList.toggle('active', x === b));
     $('st-n-wrap').hidden = kind !== 'image';
+    $('st-audio-wrap').hidden = kind === 'image';
   }));
   document.querySelectorAll('#st-imgmode [data-mode]').forEach(b => b.addEventListener('click', () => {
     imgMode = b.dataset.mode;
@@ -154,7 +167,7 @@
         rotateIdx = r.rotateIdx;
         cut = Math.max(cut, r.cut);
         const images = r.images.map(src => src.startsWith('data:') ? { imageBase64: src } : { imageLocalPath: src });
-        await api.submitTask({ prompt: window.Compose.untag(prompt, st.characters), kind, ratio: $('st-ratio').value, engine: $('st-engine')?.value || 'auto', held, label: prompt.slice(0, 60), images });
+        await api.submitTask({ prompt: window.Compose.untag(prompt, st.characters), kind, ratio: $('st-ratio').value, engine: $('st-engine')?.value || 'auto', held, label: prompt.slice(0, 60), images, audio: kind === 'image' ? '' : audio });
         count++;
       }
     }
