@@ -477,6 +477,7 @@
       const t = all.find(x => x.id === j.taskId);
       const sent = t?.status === 'processing' && t.sessionId;
       if (t?.status === 'succeeded' && t.kind === 'image') Object.assign(j, { board: t.files, thread: t.thread || '', threadAcc: t.accountId || '' });
+      else if (t?.status === 'succeeded' && j.cfg?.duration !== 'each' && j.cfg?.merge === false && t.files.length > 1) j.videos = t.files.slice();
       else if (t?.status === 'succeeded') j.videos[j.taskPart] = t.files[0];
       else if (j.taskId && !sent) api.cancelTask(j.taskId);
       Object.assign(j, { status: 'stopped', taskId: '', step: '', error: sent ? 'Tắt app khi Muse đang làm: Muse vẫn làm nốt, file tự tải về thư mục lưu (xem tab Lịch sử task)' : j.error });
@@ -551,7 +552,7 @@
   const isVieneu = v => String(v || '').toLowerCase().startsWith('vieneu:');
   const cleanVoiceName = v => String(v || '').replace(/^vieneu:/i, '').trim();
   const voiceText = v => (v === SELF_VOICE ? 'Nhân vật tự nói' : isVieneu(v) ? `VieNeu 48kHz (${cleanVoiceName(v)})` : v ? `Giọng ${v}` : 'Không lồng tiếng');
-  const cfgText = (cfg, n) => [ENGINE_TEXT[cfg.engine] || '', `${n} cảnh`, cfg.duration === 'each' ? `từng cảnh ${SCENE_SECS}s${cfg.merge && n > 1 ? ', tự ghép' : ''}` : `${cfgSecs(cfg)}s gộp 1 lệnh`,
+  const cfgText = (cfg, n) => [ENGINE_TEXT[cfg.engine] || '', `${n} cảnh`, cfg.duration === 'each' ? `từng cảnh ${SCENE_SECS}s${cfg.merge && n > 1 ? ', tự ghép' : ''}` : `${cfgSecs(cfg)}s gộp 1 lệnh${cfg.merge === false && cfg.engine !== 'muse' ? ', giữ clip riêng' : ''}`,
     cfg.ratio, voiceText(cfg.voice).toLowerCase(), cfg.host && `người dẫn ${cfg.host}`, charOf(cfg) && `dẫn: ${charOf(cfg).name}`, cfg.board && (cfg.board === 'review' ? 'storyboard, chờ duyệt' : 'storyboard'), cfg.music && 'nhạc nền ngẫu nhiên'].filter(Boolean).join(' · ');
   const stepText = j => [j.part, j.step].filter(Boolean).join(' · ');
 
@@ -659,7 +660,7 @@
       ['Engine AI', ENGINE_TEXT[cfg.engine] || 'Auto Engine'],
       ['Cách làm', cfg.board === 'review' ? 'Storyboard, chờ duyệt' : cfg.board ? 'Storyboard → video' : 'Làm thẳng'],
       ['Tỉ lệ', cfg.ratio],
-      ['Thời lượng', cfg.duration === 'each' ? `Từng cảnh ${SCENE_SECS}s${cfg.merge && j.scenes.length > 1 ? ' · tự ghép' : ''}` : `${cfgSecs(cfg)}s · gộp 1 lệnh`],
+      ['Thời lượng', cfg.duration === 'each' ? `Từng cảnh ${SCENE_SECS}s${cfg.merge && j.scenes.length > 1 ? ' · tự ghép' : ''}` : `${cfgSecs(cfg)}s · gộp 1 lệnh${cfg.merge === false && cfg.engine !== 'muse' ? ' · giữ clip riêng' : ''}`],
       ['Giọng đọc', voiceText(cfg.voice)],
       ['Số cảnh', j.scenes.length]
     ];
@@ -1009,6 +1010,8 @@
       const done = await runTask({
         prompt: board && m ? boardVideoPrompt(groups[k], job.cfg, m, job.thread) : buildPrompt(groups[k], job.cfg, refs),
         timeoutMin,
+        // Gộp 1 lệnh trên Flow/Dola/Seedance: ô "Tự ghép khi xong" quyết định app có ghép các cảnh thành 1 video không
+        merge: each ? true : job.cfg.merge !== false,
         thread: board && m ? job.thread : '', account: board && m ? job.threadAcc || '' : '',
         label: job.title + (job.part ? ` · ${job.part.toLowerCase()}` : ''),
         images: board && m ? job.board.map(f => ({ imageLocalPath: f })) : taskImages(uniqueImgs(groups[k], refs)).concat(hostImgsFor(groups[k])),
@@ -1018,7 +1021,9 @@
       if (!done) return false;
       if (done.status !== 'succeeded') return fail(done.error || 'Task không thành công. Xem tab Lịch sử task.');
       if (done.threadError) toast(`${job.title}: ${done.threadError}`, 'warn');
-      job.videos[k] = done.files[0];
+      // Bỏ tích ghép + engine trả nhiều clip → giữ đủ các clip (như Từng cảnh không ghép)
+      if (!each && job.cfg.merge === false && done.files.length > 1) job.videos = done.files.slice();
+      else job.videos[k] = done.files[0];
       if (chainable) (job.chain ||= [])[k] = { sid: done.sessionId || '', acc: done.accountId || '' };
       renderQueue();
     }
@@ -1044,7 +1049,7 @@
       if (!merged.success) return fail(`Đủ ${job.videos.length} cảnh nhưng ghép lỗi: ${merged.error}. Bấm "Thử lại" để ghép lại (không tốn lượt).`);
       job.video = merged.path;
       job.rawVideo = merged.path;
-    } else if (groups.length === 1) {
+    } else if (groups.length === 1 && job.videos.length === 1) {
       job.video = job.videos[0];
       job.rawVideo = job.videos[0];
     }

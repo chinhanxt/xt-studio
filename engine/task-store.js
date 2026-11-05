@@ -54,7 +54,7 @@ class TaskStore extends EventEmitter {
 
   // kind 'image': Muse tạo ảnh (storyboard), chờ đủ `expect` ảnh. thread: chạy tiếp trong đoạn chat Muse đã có thay vì mở chat mới.
   // held: chỉ thêm vào hàng đợi, chưa chạy tới khi bấm Chạy. accountId do scheduler gán lúc chạy.
-  add({ prompt, images = [], timeoutMin = 10, source = 'ui', label = '', kind = 'video', expect = 1, thread = '', account = '', ratio = '', engine = 'auto', held = false, project = 'default', timeRange = '', continuityStartFrame = '', continuity = true, clipK = 0, clipTotal = 0, continueFrom = '', audio = '' }) {
+  add({ prompt, images = [], timeoutMin = 10, source = 'ui', label = '', kind = 'video', expect = 1, thread = '', account = '', ratio = '', engine = 'auto', held = false, project = 'default', timeRange = '', continuityStartFrame = '', continuity = true, clipK = 0, clipTotal = 0, continueFrom = '', audio = '', merge = true }) {
     const id = 'task_' + crypto.randomBytes(8).toString('hex');
     fs.mkdirSync(this.imgDir, { recursive: true });
     const saved = images.map((img, k) => {
@@ -86,6 +86,8 @@ class TaskStore extends EventEmitter {
       continueFrom: typeof continueFrom === 'string' && continueFrom.length < 1000 ? continueFrom : '',
       // Âm thanh: '' = để Muse tự quyết (có thoại), 'nodialogue' = có tiếng cảnh nhưng không lời, 'off' = tắt tiếng hẳn
       audio: ['nodialogue', 'off'].includes(audio) ? audio : '',
+      // Prompt nhiều cảnh trên Flow/Dola/Seedance: true = app ghép thành 1 video; false = giữ từng clip riêng
+      merge: merge !== false,
       sessionId: '', accountId: '', held: held === true,
       project: /^[\w-]{1,40}$/.test(project) ? project : 'default',
       thread: /^https:\/\/muse\.ai\/thread\/[\w-]+$/.test(thread) ? thread : '',

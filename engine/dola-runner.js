@@ -470,7 +470,7 @@ async function runTask(task, context) {
     }
   }
 
-  if (sceneFiles.length > 1 && task.kind !== 'image') {
+  if (sceneFiles.length > 1 && task.kind !== 'image' && task.merge !== false) {
     update({ step: `Dola AI: Đang ghép ${sceneFiles.length} cảnh liền mạch thành 1 video...` });
     const { cleanPrj } = extractTags(task.label || task.prompt, task.project || 'default');
     const mergedName = [cleanPrj, 'Dola_Merged', Date.now()].filter(Boolean).join('_') + '.mp4';

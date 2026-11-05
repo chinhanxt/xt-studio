@@ -584,7 +584,7 @@ async function runTask(task, context) {
   }
 
   // Nếu kịch bản có nhiều cảnh gộp 1 lệnh -> tự động ghép thành 1 video hoàn chỉnh như Muse
-  if (sceneFiles.length > 1) {
+  if (sceneFiles.length > 1 && task.merge !== false) {
     update({ step: `Seedance 2.5: Đang ghép ${sceneFiles.length} cảnh liền mạch thành 1 video...` });
     const { cleanPrj } = extractTags(task.label || task.prompt, task.project || 'default');
     const mergedName = [cleanPrj, 'Seedance_Merged', Date.now()].filter(Boolean).join('_') + '.mp4';

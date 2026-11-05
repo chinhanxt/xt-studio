@@ -207,3 +207,16 @@ test('Dola/Flow/Seedance: prompt có câu âm thanh, Tắt tiếng thì file kh�
     assert.doesNotMatch(seenPrompt, /ÂM THANH/, 'Có tiếng (mặc định) không thêm gì');
   } finally { dola.runTask = orig; }
 });
+
+// --- Ô "Tự ghép khi xong" ---
+test('Task: merge mặc định bật, tắt được; 3 engine chỉ ghép khi merge bật', () => {
+  const TaskStore = require('../engine/task-store');
+  const Store = TaskStore.TaskStore || TaskStore;
+  const st = new Store(fs.mkdtempSync(path.join(tmp, 'ts-')));
+  assert.equal(st.add({ prompt: 'a' }).merge, true);
+  assert.equal(st.add({ prompt: 'b', merge: false }).merge, false);
+  for (const f of ['gflow-runner', 'dola-runner', 'seedance-runner']) {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'engine', f + '.js'), 'utf8');
+    assert.match(src, /sceneFiles\.length > 1[^{]*task\.merge !== false\) \{/, f + ' phải xét task.merge trước khi ghép');
+  }
+});
