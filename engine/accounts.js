@@ -48,7 +48,7 @@ class AccountStore extends EventEmitter {
       .filter(a => a && typeof a.id === 'string' && a.id)
       .map(a => {
         if (a.id === 'acc_seedance_1' && a.provider === 'seedance' && /^seedance/i.test(String(a.name || ''))) {
-          return cleanAccount({ ...a, id: 'acc_dola_1', name: 'Dola 1 (Seedance 2.0)', provider: 'dola', loggedIn: true });
+          return cleanAccount({ ...a, id: 'acc_dola_1', name: 'Dola 1 (Seedance 2.0)', provider: 'dola', loggedIn: false });
         }
         return cleanAccount(a);
       });
@@ -60,9 +60,10 @@ class AccountStore extends EventEmitter {
     });
     if (!this.accounts.length) {
       this.accounts = [
-        cleanAccount({ id: 'default', name: 'Tài khoản 1', provider: 'muse', enabled: true, loggedIn: true }),
-        cleanAccount({ id: 'acc_5f95e2ab', name: 'Google Flow 1', provider: 'google_flow', enabled: true, loggedIn: true }),
-        cleanAccount({ id: 'acc_dola_1', name: 'Dola 1 (Seedance 2.0)', provider: 'dola', enabled: true, loggedIn: true })
+        // Chưa kiểm thì coi là chưa đăng nhập (trước đây mặc định true → hiện "Rảnh" sai); mở app sẽ tự kiểm lại
+        cleanAccount({ id: 'default', name: 'Tài khoản 1', provider: 'muse', enabled: true, loggedIn: false }),
+        cleanAccount({ id: 'acc_5f95e2ab', name: 'Google Flow 1', provider: 'google_flow', enabled: true, loggedIn: false }),
+        cleanAccount({ id: 'acc_dola_1', name: 'Dola 1 (Seedance 2.0)', provider: 'dola', enabled: true, loggedIn: false })
       ];
       this.flush();
     } else if (data.accounts && JSON.stringify(data.accounts) !== JSON.stringify(this.accounts)) {

@@ -171,16 +171,23 @@ class MusePage {
       }
       try {
         await this.ready();
-        const res = await this.chrome.evaluate(`(() => {
+        // Hỏi API tài khoản BytePlus: đăng nhập → 200 không lỗi; chưa đăng nhập → 401 NotLogin.
+        const res = await this.chrome.evaluate(`(async () => {
           const href = location.href.toLowerCase();
           if (href.includes('login') || href.includes('signin') || href.includes('passport')) return false;
           // Đóng thông báo cookie / khuyến mãi nếu đang che
           document.querySelectorAll('button.acknowledgeButton_ef9fd, button[aria-label="Close special offer"]').forEach(b => { try { b.click(); } catch (_) {} });
+          try {
+            const r = await fetch('https://console.byteplus.com/api/passport/account/queryUser', { credentials: 'include' });
+            const j = await r.json().catch(() => ({}));
+            const err = j && j.ResponseMetadata && j.ResponseMetadata.Error;
+            if (r.status === 200 && !err) return true;
+            if (r.status === 401 || (err && err.Code === 'NotLogin')) return false;
+          } catch (_) {}
+          // API trả lạ → xem trang (không coi khung Playground là đã đăng nhập: khách cũng thấy)
           const signInBtn = document.querySelector('[data-testid="topbar-sign-in"], [data-testid="sidebar-sign-in"], button[class*="signInPill"]');
           if (signInBtn) return false;
-          const hasUser = Boolean(document.querySelector('[data-testid="topbar-user"], [data-testid="user-dropdown-menu"], [class*="avatar"], [class*="userProfile"]'));
-          const hasPlayground = Boolean(document.querySelector('.ProseMirror, [data-testid="video-sender-submit-button"]'));
-          return Boolean(hasUser || (hasPlayground && location.hostname.includes('byteplus.com')));
+          return Boolean(document.querySelector('[data-testid="topbar-user"], [data-testid="user-dropdown-menu"], [class*="userProfile"]'));
         })()`);
         return { loggedIn: Boolean(res), http: 200, status: null, vm: null };
       } catch (e) {
@@ -214,14 +221,18 @@ class MusePage {
     if (this.provider === 'dola') {
       try {
         await this.ready();
-        const res = await this.chrome.evaluate(`(() => {
-          const href = location.href.toLowerCase();
-          if (href.includes('login') || href.includes('signin')) return false;
-          const hasSignInBtn = Boolean(document.querySelector('button[aria-label*="Sign in" i], [class*="signIn" i], a[href*="login"]'));
-          if (hasSignInBtn) return false;
-          const hasUser = Boolean(document.querySelector('button[aria-label*="Settings" i], [class*="avatar" i], [class*="user" i]'));
-          const hasCreation = Boolean(document.querySelector('[contenteditable="true"], a[href*="create-image"], button[role="tab"]'));
-          return Boolean(hasUser || hasCreation);
+        // Dola cho dùng chế độ KHÁCH (vẫn có ô soạn thảo) → không dựa vào giao diện. Hỏi API tài khoản ByteDance:
+        // đăng nhập → message 'success' + user_id; chưa đăng nhập / hết phiên → message 'error', error_code 1.
+        const res = await this.chrome.evaluate(`(async () => {
+          try {
+            const r = await fetch('/passport/web/account/info/', { credentials: 'include' });
+            const j = await r.json();
+            if (j && j.message === 'success' && j.data && (j.data.user_id || j.data.user_id_str)) return true;
+            if (j && j.message === 'error') return false;
+          } catch (_) {}
+          // API trả lạ → xem trang: còn nút Log In là chưa đăng nhập
+          const loginBtn = [...document.querySelectorAll('button, a')].some(e => /^(log ?in|sign ?in|đăng nhập)$/i.test((e.textContent || '').trim()));
+          return !loginBtn && Boolean(document.querySelector('[class*="avatar" i]'));
         })()`);
         return { loggedIn: Boolean(res), http: 200, status: null, vm: null };
       } catch (e) {

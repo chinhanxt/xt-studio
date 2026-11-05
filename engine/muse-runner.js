@@ -326,5 +326,5 @@ function failurePatch(task, e, now = Date.now(), maxAttempts = 2) {
   return { status: 'queued', sessionId: '', error: `Lỗi lần ${task.attempts}, đang thử lại: ${e.message}` };
 }
 
-module.exports = { buildMessage, ensureLogin, runTask, failurePatch, RATIO_LABEL, extractTags, isMuseRefusal, MUSE_LIMIT_RE, checkVideoFile, clipText, AUDIO_TEXT };
+module.exports = { buildMessage, ensureLogin, runTask, failurePatch, RATIO_LABEL, extractTags, isMuseRefusal, MUSE_LIMIT_RE, checkVideoFile, clipText, AUDIO_TEXT, stripAudio };
 

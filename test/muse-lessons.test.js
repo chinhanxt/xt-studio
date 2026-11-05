@@ -188,3 +188,22 @@ test('Âm thanh Tắt tiếng: file tải về không còn luồng âm thanh', {
   const streams = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', saved]).toString().trim().split('\n');
   assert.deepEqual(streams, ['video']);
 });
+
+// --- Âm thanh cho Flow / Dola / Seedance (qua bộ điều phối) ---
+test('Dola/Flow/Seedance: prompt có câu âm thanh, Tắt tiếng thì file không còn tiếng', { skip: !hasFfmpeg }, async () => {
+  const dola = require('../engine/dola-runner');
+  const { dispatchTask } = require('../engine/multi-engine');
+  const src = path.join(tmp, 'dola_audio.mp4');
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=gray:s=64x64:d=2', '-f', 'lavfi', '-i', 'sine=frequency=330:duration=2', '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', src]);
+  const orig = dola.runTask;
+  let seenPrompt = '';
+  dola.runTask = async t => { seenPrompt = t.prompt; return [src]; };
+  try {
+    const files = await dispatchTask({ id: 'x', kind: 'video', prompt: 'Cảnh 1: mèo chạy\n\nCảnh 2: mèo ngủ', engine: 'dola', audio: 'off' }, { page: { provider: 'dola' } });
+    assert.match(seenPrompt, /KHÔNG có âm thanh/);
+    const streams = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', files[0]]).toString().trim().split('\n');
+    assert.deepEqual(streams, ['video']);
+    await dispatchTask({ id: 'y', kind: 'video', prompt: 'mèo', engine: 'dola', audio: '' }, { page: { provider: 'dola' } });
+    assert.doesNotMatch(seenPrompt, /ÂM THANH/, 'Có tiếng (mặc định) không thêm gì');
+  } finally { dola.runTask = orig; }
+});

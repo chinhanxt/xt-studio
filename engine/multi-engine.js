@@ -6,7 +6,7 @@
  *  3. Seedance (Seedance 2.0 / 2.5) - Tối ưu cho chuyển động nhân vật, nhất quán đa góc, tương tác vật lý mạnh
  */
 
-const { runTask: runMuseTask } = require('./muse-runner');
+const { runTask: runMuseTask, AUDIO_TEXT, stripAudio } = require('./muse-runner');
 const gflowRunner = require('./gflow-runner');
 const seedanceRunner = require('./seedance-runner');
 const dolaRunner = require('./dola-runner');
@@ -53,15 +53,26 @@ async function dispatchTask(task, context) {
   console.log(`[MultiEngine] Task ${task.id} (provider=${provider}) điều hướng tới engine: ${chosen}`);
 
   try {
+    // Âm thanh (Có tiếng / Không thoại / Tắt tiếng) cho Flow, Seedance, Dola: nối câu lệnh âm thanh thành đoạn cuối của prompt
+    // (scene-helper coi đoạn sau cảnh cuối là phần kết chung → mọi cảnh đều nhận); Tắt tiếng thì gỡ tiếng sau khi tải.
+    // Muse tự xử lý trong buildMessage của muse-runner.
+    const withAudio = async run => {
+      const text = AUDIO_TEXT[task.audio];
+      const files = await run(text ? { ...task, prompt: `${String(task.prompt || '').trim()}\n\n${text}` } : task);
+      if (task.audio === 'off' && Array.isArray(files) && task.kind !== 'image') {
+        for (const f of files) if (typeof f === 'string' && /\.(mp4|mov|webm|m4v)$/i.test(f)) await stripAudio(f);
+      }
+      return files;
+    };
     switch (chosen) {
       case ENGINES.GOOGLE_FLOW:
-        return await runGoogleFlowTask(task, context);
+        return await withAudio(t => runGoogleFlowTask(t, context));
 
       case ENGINES.SEEDANCE:
-        return await runSeedanceTask(task, context);
+        return await withAudio(t => runSeedanceTask(t, context));
 
       case ENGINES.DOLA:
-        return await runDolaTask(task, context);
+        return await withAudio(t => runDolaTask(t, context));
 
       case ENGINES.MUSE:
       default:
