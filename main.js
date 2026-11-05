@@ -322,6 +322,17 @@ async function startAccounts() {
   pool.pump();
   pushStatus();
   setInterval(() => { pool.pump(); pushStatus(); }, 60e3);
+  // Giữ phiên Muse (bài học EM BÔNG: phiên ~48h tự hết nếu không ghé): mỗi 6 giờ tải lại trang Muse của tài khoản
+  // đang rảnh và đang mở Chrome, dò đăng nhập (kèm đánh thức VM) + cập nhật hạn mức. Không tự mở Chrome đã đóng.
+  setInterval(async () => {
+    for (const a of accountStore.list().filter(x => x.enabled && (x.provider || 'muse') === 'muse')) {
+      const page = pages.get(a.id);
+      if (pool.busy(a.id) || !page?.chrome?.running) continue;
+      await page.chrome.evaluate('location.reload()').catch(() => {});
+      if (await pool.checkLogin(a.id, 10)) await pool.refreshQuota(a.id);
+    }
+    pushStatus();
+  }, 6 * 60 * 60e3);
 }
 
 function fetchImageAsDataUrl(imgUrl) {

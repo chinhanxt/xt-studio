@@ -43,7 +43,13 @@ function pageMain(CHUNK) {
       try {
         const r = await fetch('/api/session', { credentials: 'include' });
         const j = await r.json().catch(() => ({}));
-        return { loggedIn: r.status === 200 && Boolean(chat()), http: r.status, status: j.status || null, vm: j.vm_state || null };
+        // Muse phải đã cấp máy ảo cho tài khoản (status 'assigned'); VM đang ngủ thì đánh thức (cách EM BÔNG làm)
+        const assigned = !j.status || j.status === 'assigned';
+        if (r.status === 200 && j.status === 'assigned' && j.vm_id && j.vm_state && j.vm_state !== 'RUNNING') {
+          fetch('/api/hatch/vm/wake', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+            body: JSON.stringify({ vm_id: j.vm_id, retry_count: 0, connect_attempt_id: crypto.randomUUID() }) }).catch(() => {});
+        }
+        return { loggedIn: r.status === 200 && assigned && Boolean(chat()), http: r.status, status: j.status || null, vm: j.vm_state || null };
       } catch (e) {
         return { loggedIn: false, http: 0, status: null, vm: null };
       }

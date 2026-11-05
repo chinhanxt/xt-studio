@@ -14,6 +14,38 @@ const EXT = { 'video/mp4': 'mp4', 'image/webp': 'webp', 'image/png': 'png', 'ima
 const realSleep = ms => new Promise(r => setTimeout(r, ms));
 // Lỗi do Muse trả lời (không ra file / quá giờ) — khác lỗi đường truyền: thử lại bằng chat mới mới có ích
 const museError = msg => Object.assign(new Error(msg), { museResult: true });
+// Muse báo hết lượt bằng chữ (bài học EM BÔNG #222/#226: chỉ xét câu trả lời cuối, không đánh dấu tài khoản chết)
+const MUSE_LIMIT_RE = /额度不足|积分不足|out of credits|达到上限|token limit/i;
+const limitError = text => Object.assign(new Error(`Muse báo hết lượt: "${String(text).slice(0, 160)}"`), { limit: true, limitText: String(text).slice(0, 200) });
+
+// Kiểm file video tải về (bài học EM BÔNG: gửi dồn Muse có thể trả file hỏng / trùng):
+// phải có luồng hình, dài ≥ 1.5s, và không trùng nội dung với video vừa tải trước đó.
+const { execFile } = require('child_process');
+const crypto = require('crypto');
+const recentMd5 = new Map(); // md5 → đường dẫn file (giữ ~300 file gần nhất)
+function probeVideo(file) {
+  const ffprobe = require('./merge').resolveBin('ffprobe');
+  return new Promise(resolve => execFile(ffprobe, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_type:format=duration', '-of', 'json', file],
+    { timeout: 20000 }, (err, out) => {
+      if (err && err.code === 'ENOENT') return resolve({ ok: true, skipped: true }); // máy không có ffprobe → bỏ qua kiểm
+      try {
+        const j = JSON.parse(out || '{}');
+        const hasVideo = (j.streams || []).some(s => s.codec_type === 'video');
+        const dur = parseFloat(j.format?.duration || 0);
+        resolve(hasVideo && dur >= 1.5 ? { ok: true, dur } : { ok: false, reason: hasVideo ? `video quá ngắn (${dur.toFixed(1)}s)` : 'file không có hình' });
+      } catch (_) { resolve({ ok: false, reason: 'không đọc được file video' }); }
+    }));
+}
+async function checkVideoFile(file, buf) {
+  const md5 = crypto.createHash('md5').update(buf).digest('hex');
+  const dup = recentMd5.get(md5);
+  if (dup && dup !== file && fs.existsSync(dup)) return { ok: false, reason: `trùng nội dung với ${path.basename(dup)}` };
+  const p = await probeVideo(file);
+  if (!p.ok) return p;
+  recentMd5.set(md5, file);
+  if (recentMd5.size > 300) recentMd5.delete(recentMd5.keys().next().value);
+  return { ok: true };
+}
 
 function buildMessage({ kind, ratio, prompt, images }) {
   const head = (kind === 'image' ? 'Tạo ảnh' : 'Tạo video') + (RATIO_LABEL[ratio] ? ` · tỷ lệ ${RATIO_LABEL[ratio]}` : '');
@@ -190,6 +222,21 @@ async function runTask(task, { page, accountId = '', update, isLive, outputDir, 
     }
   }
 
+  // 3. Muse báo hết lượt → không tính là lỗi của task, để Pool cho tài khoản nghỉ và chuyển task
+  if (!wanted.length && MUSE_LIMIT_RE.test(text || '')) throw limitError(text);
+
+  // 4. Phiên xong nhưng file còn đánh dấu "missing" / chưa ghi xong → đọc lại tối đa 2 lần, mỗi lần chờ 10s
+  for (let k = 0; !wanted.length && k < 2 && !isMuseRefusal(text) && isLive(); k++) {
+    update({ step: `Muse chưa trả file, đọc lại (${k + 1}/2)…` });
+    await sleep(10e3);
+    const again = await page.result(sid).catch(() => null);
+    if (!again) continue;
+    files = again.files || [];
+    text = again.text || text;
+    wanted = files.filter(f => f.mime.startsWith(task.kind === 'image' ? 'image/' : 'video/'));
+    if (task.kind === 'image') wanted = wanted.slice(0, task.expect || 1);
+  }
+
   if (!wanted.length) {
     throw museError(text ? `Muse không tạo ${what}. Muse trả lời: "${text}"` : `Muse không trả về ${what} (phiên ${pollRes.status || 'không thấy'}).`);
   }
@@ -206,6 +253,13 @@ async function runTask(task, { page, accountId = '', update, isLive, outputDir, 
     const baseName = prefix ? `${prefix}_Muse_${Date.now()}_${k + 1}` : `Muse_${Date.now()}_${k + 1}`;
     const file = path.join(dir, `${baseName}.${EXT[f.mime] || f.mime.split('/')[1]}`);
     fs.writeFileSync(file, buf);
+    if (task.kind !== 'image') {
+      const chk = await checkVideoFile(file, buf);
+      if (!chk.ok) {
+        try { fs.unlinkSync(file); } catch (_) {}
+        throw museError(`File video Muse trả về bị lỗi: ${chk.reason}`);
+      }
+    }
     saved.push(file);
   }
   return saved;
@@ -219,5 +273,5 @@ function failurePatch(task, e, now = Date.now(), maxAttempts = 2) {
   return { status: 'queued', sessionId: '', error: `Lỗi lần ${task.attempts}, đang thử lại: ${e.message}` };
 }
 
-module.exports = { buildMessage, ensureLogin, runTask, failurePatch, RATIO_LABEL, extractTags, isMuseRefusal };
+module.exports = { buildMessage, ensureLogin, runTask, failurePatch, RATIO_LABEL, extractTags, isMuseRefusal, MUSE_LIMIT_RE, checkVideoFile };
 

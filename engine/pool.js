@@ -11,12 +11,18 @@ const realSleep = ms => new Promise(r => setTimeout(r, ms));
 // Nghỉ ngẫu nhiên 15–20s giữa 2 lần gửi trên cùng tài khoản: gửi dồn dập dễ bị Muse nghi là tool.
 // ponytail: hằng số cứng, thêm ô cài đặt nếu người dùng cần chỉnh.
 const randomGap = () => 15e3 + Math.random() * 5e3;
+// Khoảng cách tối thiểu giữa 2 lần gửi bất kỳ, tính chung mọi tài khoản (bài học EM BÔNG: gửi dồn → Muse trả file hỏng/trùng).
+const GLOBAL_GAP = 20e3;
+// Muse báo hết lượt bằng chữ → tài khoản nghỉ chừng này rồi thử lại
+const LIMIT_REST = 60 * 60e3;
 
 class Pool {
   // skip(task): true → task chờ chưa được chạy (dự án đang tạm dừng)
-  constructor({ tasks, accounts, pageFor, config, loadImage, onFiles = () => {}, run = runTask, sleep = realSleep, now = Date.now, skip = () => false, gap = randomGap, onNeedLogin = null }) {
-    Object.assign(this, { tasks, accounts, pageFor, config, loadImage, onFiles, run, sleep, now, skip, gap, onNeedLogin });
+  constructor({ tasks, accounts, pageFor, config, loadImage, onFiles = () => {}, run = runTask, sleep = realSleep, now = Date.now, skip = () => false, gap = randomGap, globalGap = () => GLOBAL_GAP, onNeedLogin = null }) {
+    Object.assign(this, { tasks, accounts, pageFor, config, loadImage, onFiles, run, sleep, now, skip, gap, globalGap, onNeedLogin });
     this.running = new Map(); // taskId → accountId
+    this.sendTurn = Promise.resolve(); // hàng chờ gửi: mỗi lần chỉ 1 task được gửi
+    this.lastSendAt = 0;
   }
 
   busy(accId) {
@@ -82,6 +88,18 @@ class Pool {
           await this.sleep(wait);
           if (!isLive()) return;
         }
+        // Xếp hàng gửi chung mọi tài khoản: cách lần gửi trước ít nhất GLOBAL_GAP
+        const turn = this.sendTurn.then(async () => {
+          const w = this.lastSendAt + this.globalGap() - this.now();
+          if (w > 0 && isLive()) {
+            this.tasks.update(id, { step: `Chờ ~${Math.ceil(w / 1000)}s tới lượt gửi (tránh gửi dồn)` });
+            await this.sleep(w);
+          }
+          this.lastSendAt = this.now();
+        });
+        this.sendTurn = turn.catch(() => {});
+        await turn;
+        if (!isLive()) return;
       }
       const files = await this.run(this.tasks.get(id), { page, accountId: accId, update: p => this.tasks.update(id, p), isLive, outputDir: cfg.outputDir, loadImage: this.loadImage, limits: cfg.limits });
       done = true;
@@ -93,6 +111,15 @@ class Pool {
       this.onFiles(files);
     } catch (e) {
       if (!isLive()) return;
+      // Muse trả lời là hết lượt → tài khoản nghỉ LIMIT_REST, task về hàng đợi, không tính lượt thử
+      if (e.limit) {
+        await this.refreshQuota(accId);
+        const acc = this.accounts.get(accId);
+        if (acc) this.accounts.update(accId, { limitUntil: this.now() + LIMIT_REST, limitText: e.limitText || '' });
+        const t = this.tasks.get(id);
+        this.tasks.update(id, { status: 'queued', accountId: '', sessionId: '', step: '', attempts: Math.max(0, t.attempts - 1), error: `${acc?.name || accId}: ${e.message} · nghỉ 60 phút, chuyển tài khoản khác` });
+        return;
+      }
       // Muse không nhận lệnh: có thể do hết hạn mức → đọc hạn mức; tài khoản phải nghỉ thì trả task về hàng đợi, không tốn lượt
       if (/^Muse không nhận lệnh/.test(e.message)) {
         await this.refreshQuota(accId);

@@ -11,6 +11,7 @@ function weeklyOut(q) {
 
 // Thời điểm hết nghỉ (ms) nếu tài khoản đang nghỉ vì hạn mức; 0 = không nghỉ.
 function pausedUntil(acc, settings, now) {
+  if (acc.limitUntil && acc.limitUntil > now) return acc.limitUntil;
   const q = acc.quota;
   if (!weeklyOut(q) || settings.keepGoing) return 0;
   if (q.resetsAt && q.resetsAt <= now) return 0; // đã qua ngày đặt lại, số cũ hết hiệu lực

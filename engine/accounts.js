@@ -30,6 +30,8 @@ function cleanAccount(a) {
     id: a.id, name, provider,
     apiKey: String(a.apiKey || '').slice(0, 300), enabled: a.enabled !== false,
     threads: clamp(a.threads ?? 1, 1, 5, 1), loggedIn: a.loggedIn ?? true, quota: a.quota || null, lastUsedAt: a.lastUsedAt || 0,
+    // Muse trả lời bằng chữ là hết lượt (vd. "out of credits") → nghỉ tới limitUntil, kèm câu Muse đã nói
+    limitUntil: Number(a.limitUntil) || 0, limitText: String(a.limitText || '').slice(0, 200),
     // proxy: '' = tự chọn trong danh sách, 'none' = không dùng, còn lại = 1 dòng proxy cố định; proxyAuto = proxy đang được tự chọn (giữ cố định)
     proxy: String(a.proxy || '').slice(0, 300), proxyAuto: String(a.proxyAuto || '').slice(0, 300)
   };
