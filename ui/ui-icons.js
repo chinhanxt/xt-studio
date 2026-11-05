@@ -1,6 +1,9 @@
 /**
- * xT studio — lớp giao diện: emoji → icon SVG (Lucide), mô tả dài → icon (i) có tooltip, đổi tên hiển thị.
- * Chỉ đổi phần hiển thị; không đụng ID, giá trị ô nhập hay dữ liệu.
+ * xT studio — icon & gợi ý cho phần giao diện do JS sinh ra lúc chạy:
+ *  - emoji trong chữ động (toast, trạng thái, danh sách…) → icon SVG (Lucide)
+ *  - mô tả dài sinh động → icon (i) có tooltip
+ *  - mục lục trang Hướng dẫn: cuộn mượt + sáng mục đang đọc
+ * Phần HTML tĩnh đã được ghi sẵn icon/tooltip trong index.html; file này chỉ lo phần động.
  */
 (function () {
   'use strict';
